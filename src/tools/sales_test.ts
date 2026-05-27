@@ -20,6 +20,7 @@ type AnyFn = (...args: any[]) => any;
 function makeMockClient(overrides: Record<string, AnyFn> = {}): FrappeClient {
   const mock: Record<string, AnyFn> = {
     list: async () => [],
+    listPaged: async () => ({ data: [], fetched_count: 0, truncated: false, max_cap_used: 5000 }),
     get: async () => ({ name: "TEST-001" }),
     create: async (_doctype: string, data: unknown) => ({
       name: "SO-NEW-001",
@@ -215,4 +216,31 @@ Deno.test("erpnext_sales_invoice_list - returns invoices with _meta.ui", async (
     (result._meta as { ui: { resourceUri: string } }).ui.resourceUri,
     "ui://mcp-erpnext/doclist-viewer",
   );
+});
+
+Deno.test("erpnext_sales_invoice_list - exposes pagination metadata", async () => {
+  let calledPaged = false;
+  const mockClient = makeMockClient({
+    listPaged: async (doctype: string) => {
+      calledPaged = true;
+      assertEquals(doctype, "Sales Invoice");
+      return {
+        data: [
+          { name: "SINV-001", customer: "CUST-001", grand_total: 1000, status: "Paid" },
+          { name: "SINV-002", customer: "CUST-002", grand_total: 250, status: "Paid" },
+        ],
+        fetched_count: 2,
+        truncated: false,
+        max_cap_used: 5000,
+      };
+    },
+  });
+
+  const tool = getTool("erpnext_sales_invoice_list");
+  const result = await tool.handler({}, makeCtx(mockClient)) as Record<string, unknown>;
+
+  assertEquals(calledPaged, true);
+  assertEquals(result.count, 2);
+  assertEquals(result.fetched_count, 2);
+  assertEquals(result.truncated, false);
 });

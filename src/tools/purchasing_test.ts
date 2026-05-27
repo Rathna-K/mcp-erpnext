@@ -17,6 +17,7 @@ type AnyFn = (...args: any[]) => any;
 function makeMockClient(overrides: Record<string, AnyFn> = {}): FrappeClient {
   const mock: Record<string, AnyFn> = {
     list: async () => [],
+    listPaged: async () => ({ data: [], fetched_count: 0, truncated: false, max_cap_used: 5000 }),
     get: async () => ({ name: "TEST-001" }),
     create: async (_doctype: string, data: unknown) => ({
       name: "NEW-001",
@@ -141,4 +142,30 @@ Deno.test("erpnext_purchase_order_create - throws if supplier missing", async ()
     Error,
     "supplier",
   );
+});
+
+Deno.test("erpnext_purchase_invoice_list - exposes pagination metadata", async () => {
+  let calledPaged = false;
+  const mockClient = makeMockClient({
+    listPaged: async (doctype: string) => {
+      calledPaged = true;
+      assertEquals(doctype, "Purchase Invoice");
+      return {
+        data: [
+          { name: "PINV-001", supplier: "SUP-001", grand_total: 1000, status: "Paid" },
+        ],
+        fetched_count: 1,
+        truncated: false,
+        max_cap_used: 5000,
+      };
+    },
+  });
+
+  const tool = getTool("erpnext_purchase_invoice_list");
+  const result = await tool.handler({}, makeCtx(mockClient)) as Record<string, unknown>;
+
+  assertEquals(calledPaged, true);
+  assertEquals(result.count, 1);
+  assertEquals(result.fetched_count, 1);
+  assertEquals(result.truncated, false);
 });

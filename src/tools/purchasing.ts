@@ -172,6 +172,14 @@ export const purchasingTools: ErpNextTool[] = [
       type: "object",
       properties: {
         limit: { type: "number", description: "Max results (default 20)" },
+        auto_paginate: {
+          type: "boolean",
+          description: "When true and limit is omitted, fetch all pages up to max_records (default true)",
+        },
+        max_records: {
+          type: "number",
+          description: "Safety cap for auto pagination (default 5000)",
+        },
         supplier: { type: "string", description: "Filter by supplier" },
         status: {
           type: "string",
@@ -187,6 +195,8 @@ export const purchasingTools: ErpNextTool[] = [
     },
     handler: async (input, ctx) => {
       const limit = (input.limit as number) ?? 20;
+      const autoPaginate = (input.auto_paginate as boolean) ?? true;
+      const maxRecords = Math.max(1, (input.max_records as number) ?? 5000);
       const filters: FrappeFilter[] = [];
       if (input.supplier) {
         filters.push(["supplier", "=", input.supplier as string]);
@@ -339,6 +349,14 @@ export const purchasingTools: ErpNextTool[] = [
       type: "object",
       properties: {
         limit: { type: "number", description: "Max results (default 20)" },
+        auto_paginate: {
+          type: "boolean",
+          description: "When true and limit is omitted, fetch all pages up to max_records (default true)",
+        },
+        max_records: {
+          type: "number",
+          description: "Safety cap for auto pagination (default 5000)",
+        },
         supplier: { type: "string", description: "Filter by supplier" },
         status: {
           type: "string",
@@ -354,6 +372,8 @@ export const purchasingTools: ErpNextTool[] = [
     },
     handler: async (input, ctx) => {
       const limit = (input.limit as number) ?? 20;
+      const autoPaginate = (input.auto_paginate as boolean) ?? true;
+      const maxRecords = Math.max(1, (input.max_records as number) ?? 5000);
       const filters: FrappeFilter[] = [];
       if (input.supplier) {
         filters.push(["supplier", "=", input.supplier as string]);
@@ -368,7 +388,7 @@ export const purchasingTools: ErpNextTool[] = [
         filters.push(["posting_date", "<=", input.date_to as string]);
       }
 
-      const docs = await ctx.client.list("Purchase Invoice", {
+      const listOptions = {
         fields: [
           "name",
           "supplier",
@@ -379,14 +399,21 @@ export const purchasingTools: ErpNextTool[] = [
           "outstanding_amount",
         ],
         filters,
-        limit,
+        limit: input.limit === undefined ? undefined : limit,
         order_by: "modified desc",
-      });
+      };
+      const pageResult = autoPaginate
+        ? await ctx.client.listPaged("Purchase Invoice", listOptions, { maxRecords })
+        : { data: await ctx.client.list("Purchase Invoice", { ...listOptions, limit }), fetched_count: 0, truncated: false, max_cap_used: maxRecords };
+      const docs = pageResult.data;
 
       return {
         doctype: "Purchase Invoice",
         count: docs.length,
         data: docs,
+        fetched_count: pageResult.fetched_count || docs.length,
+        truncated: pageResult.truncated,
+        max_cap_used: pageResult.max_cap_used,
         _meta: DOCLIST_META,
       };
     },

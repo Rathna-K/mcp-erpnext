@@ -65,6 +65,13 @@ export interface FrappeClientConfig {
 const DEFAULT_RETRY_STATUSES = [408, 429, 502, 503, 504];
 const DEFAULT_RETRY_METHODS = ["GET"];
 
+export interface FrappePagedListResult<T extends FrappeDoc = FrappeDoc> {
+  data: T[];
+  fetched_count: number;
+  truncated: boolean;
+  max_cap_used: number;
+}
+
 /**
  * Error thrown when a Frappe REST API request fails.
  *
@@ -347,6 +354,61 @@ export class FrappeClient {
       `/api/resource/${encodeURIComponent(doctype)}${query}`,
     );
     return res.data ?? [];
+  }
+
+  /**
+   * List documents with internal pagination when `options.limit` is not provided.
+   * Returns explicit truncation metadata to avoid silent partial datasets.
+   */
+  async listPaged<T extends FrappeDoc = FrappeDoc>(
+    doctype: string,
+    options: FrappeListOptions = {},
+    config: {
+      pageSize?: number;
+      maxRecords?: number;
+    } = {},
+  ): Promise<FrappePagedListResult<T>> {
+    const pageSize = Math.max(1, config.pageSize ?? 200);
+    const maxRecords = Math.max(1, config.maxRecords ?? 5000);
+
+    if (options.limit !== undefined) {
+      const rows = await this.list<T>(doctype, options);
+      return {
+        data: rows,
+        fetched_count: rows.length,
+        truncated: false,
+        max_cap_used: maxRecords,
+      };
+    }
+
+    const all: T[] = [];
+    let start = Math.max(0, options.limit_start ?? 0);
+    let truncated = false;
+
+    while (all.length < maxRecords) {
+      const remaining = maxRecords - all.length;
+      const limit = Math.min(pageSize, remaining);
+      const batch = await this.list<T>(doctype, {
+        ...options,
+        limit,
+        limit_start: start,
+      });
+      if (batch.length === 0) break;
+      all.push(...batch);
+      start += batch.length;
+      if (batch.length < limit) break;
+      if (all.length >= maxRecords) {
+        truncated = true;
+        break;
+      }
+    }
+
+    return {
+      data: all,
+      fetched_count: all.length,
+      truncated,
+      max_cap_used: maxRecords,
+    };
   }
 
   /**

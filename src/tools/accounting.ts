@@ -27,6 +27,14 @@ export const accountingTools: ErpNextTool[] = [
       type: "object",
       properties: {
         limit: { type: "number", description: "Max results (default 50)" },
+        auto_paginate: {
+          type: "boolean",
+          description: "When true and limit is omitted, fetch all pages up to max_records (default true)",
+        },
+        max_records: {
+          type: "number",
+          description: "Safety cap for auto pagination (default 5000)",
+        },
         root_type: {
           type: "string",
           description:
@@ -42,6 +50,8 @@ export const accountingTools: ErpNextTool[] = [
     },
     handler: async (input, ctx) => {
       const limit = (input.limit as number) ?? 50;
+      const autoPaginate = (input.auto_paginate as boolean) ?? true;
+      const maxRecords = Math.max(1, (input.max_records as number) ?? 5000);
       const filters: FrappeFilter[] = [];
       if (input.root_type) {
         filters.push(["root_type", "=", input.root_type as string]);
@@ -53,7 +63,7 @@ export const accountingTools: ErpNextTool[] = [
         filters.push(["company", "=", input.company as string]);
       }
 
-      const docs = await ctx.client.list("Account", {
+      const listOptions = {
         fields: [
           "name",
           "account_name",
@@ -63,14 +73,21 @@ export const accountingTools: ErpNextTool[] = [
           "is_group",
         ],
         filters,
-        limit,
+        limit: input.limit === undefined ? undefined : limit,
         order_by: "name asc",
-      });
+      };
+      const pageResult = autoPaginate
+        ? await ctx.client.listPaged("Account", listOptions, { maxRecords })
+        : { data: await ctx.client.list("Account", { ...listOptions, limit }), fetched_count: 0, truncated: false, max_cap_used: maxRecords };
+      const docs = pageResult.data;
 
       return {
         doctype: "Account",
         count: docs.length,
         data: docs,
+        fetched_count: pageResult.fetched_count || docs.length,
+        truncated: pageResult.truncated,
+        max_cap_used: pageResult.max_cap_used,
         _meta: DOCLIST_META,
       };
     },
@@ -90,6 +107,14 @@ export const accountingTools: ErpNextTool[] = [
       type: "object",
       properties: {
         limit: { type: "number", description: "Max results (default 20)" },
+        auto_paginate: {
+          type: "boolean",
+          description: "When true and limit is omitted, fetch all pages up to max_records (default true)",
+        },
+        max_records: {
+          type: "number",
+          description: "Safety cap for auto pagination (default 5000)",
+        },
         voucher_type: {
           type: "string",
           description:
@@ -104,6 +129,8 @@ export const accountingTools: ErpNextTool[] = [
     },
     handler: async (input, ctx) => {
       const limit = (input.limit as number) ?? 20;
+      const autoPaginate = (input.auto_paginate as boolean) ?? true;
+      const maxRecords = Math.max(1, (input.max_records as number) ?? 5000);
       const filters: FrappeFilter[] = [];
       if (input.voucher_type) {
         filters.push(["voucher_type", "=", input.voucher_type as string]);
@@ -115,7 +142,7 @@ export const accountingTools: ErpNextTool[] = [
         filters.push(["posting_date", "<=", input.date_to as string]);
       }
 
-      const docs = await ctx.client.list("Journal Entry", {
+      const listOptions = {
         fields: [
           "name",
           "voucher_type",
@@ -125,14 +152,21 @@ export const accountingTools: ErpNextTool[] = [
           "remark",
         ],
         filters,
-        limit,
+        limit: input.limit === undefined ? undefined : limit,
         order_by: "modified desc",
-      });
+      };
+      const pageResult = autoPaginate
+        ? await ctx.client.listPaged("Journal Entry", listOptions, { maxRecords })
+        : { data: await ctx.client.list("Journal Entry", { ...listOptions, limit }), fetched_count: 0, truncated: false, max_cap_used: maxRecords };
+      const docs = pageResult.data;
 
       return {
         doctype: "Journal Entry",
         count: docs.length,
         data: docs,
+        fetched_count: pageResult.fetched_count || docs.length,
+        truncated: pageResult.truncated,
+        max_cap_used: pageResult.max_cap_used,
         _meta: DOCLIST_META,
       };
     },
@@ -178,6 +212,14 @@ export const accountingTools: ErpNextTool[] = [
       type: "object",
       properties: {
         limit: { type: "number", description: "Max results (default 20)" },
+        auto_paginate: {
+          type: "boolean",
+          description: "When true and limit is omitted, fetch all pages up to max_records (default true)",
+        },
+        max_records: {
+          type: "number",
+          description: "Safety cap for auto pagination (default 5000)",
+        },
         payment_type: {
           type: "string",
           description:
@@ -197,6 +239,8 @@ export const accountingTools: ErpNextTool[] = [
     },
     handler: async (input, ctx) => {
       const limit = (input.limit as number) ?? 20;
+      const autoPaginate = (input.auto_paginate as boolean) ?? true;
+      const maxRecords = Math.max(1, (input.max_records as number) ?? 5000);
       const filters: FrappeFilter[] = [];
       if (input.payment_type) {
         filters.push(["payment_type", "=", input.payment_type as string]);
@@ -211,7 +255,7 @@ export const accountingTools: ErpNextTool[] = [
         filters.push(["posting_date", ">=", input.date_from as string]);
       }
 
-      const docs = await ctx.client.list("Payment Entry", {
+      const listOptions = {
         fields: [
           "name",
           "payment_type",
@@ -222,14 +266,21 @@ export const accountingTools: ErpNextTool[] = [
           "currency",
         ],
         filters,
-        limit,
+        limit: input.limit === undefined ? undefined : limit,
         order_by: "modified desc",
-      });
+      };
+      const pageResult = autoPaginate
+        ? await ctx.client.listPaged("Payment Entry", listOptions, { maxRecords })
+        : { data: await ctx.client.list("Payment Entry", { ...listOptions, limit }), fetched_count: 0, truncated: false, max_cap_used: maxRecords };
+      const docs = pageResult.data;
 
       return {
         doctype: "Payment Entry",
         count: docs.length,
         data: docs,
+        fetched_count: pageResult.fetched_count || docs.length,
+        truncated: pageResult.truncated,
+        max_cap_used: pageResult.max_cap_used,
         _meta: DOCLIST_META,
       };
     },

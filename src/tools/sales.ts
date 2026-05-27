@@ -259,6 +259,14 @@ export const salesTools: ErpNextTool[] = [
       type: "object",
       properties: {
         limit: { type: "number", description: "Max results (default 20)" },
+        auto_paginate: {
+          type: "boolean",
+          description: "When true and limit is omitted, fetch all pages up to max_records (default true)",
+        },
+        max_records: {
+          type: "number",
+          description: "Safety cap for auto pagination (default 5000)",
+        },
         customer: { type: "string", description: "Filter by customer" },
         status: {
           type: "string",
@@ -274,6 +282,8 @@ export const salesTools: ErpNextTool[] = [
     },
     handler: async (input, ctx) => {
       const limit = (input.limit as number) ?? 20;
+      const autoPaginate = (input.auto_paginate as boolean) ?? true;
+      const maxRecords = Math.max(1, (input.max_records as number) ?? 5000);
       const filters: FrappeFilter[] = [];
       if (input.customer) {
         filters.push(["customer", "=", input.customer as string]);
@@ -573,6 +583,14 @@ export const salesTools: ErpNextTool[] = [
       type: "object",
       properties: {
         limit: { type: "number", description: "Max results (default 20)" },
+        auto_paginate: {
+          type: "boolean",
+          description: "When true and limit is omitted, fetch all pages up to max_records (default true)",
+        },
+        max_records: {
+          type: "number",
+          description: "Safety cap for auto pagination (default 5000)",
+        },
         customer: { type: "string", description: "Filter by customer" },
         status: {
           type: "string",
@@ -588,6 +606,8 @@ export const salesTools: ErpNextTool[] = [
     },
     handler: async (input, ctx) => {
       const limit = (input.limit as number) ?? 20;
+      const autoPaginate = (input.auto_paginate as boolean) ?? true;
+      const maxRecords = Math.max(1, (input.max_records as number) ?? 5000);
       const filters: FrappeFilter[] = [];
       if (input.customer) {
         filters.push(["customer", "=", input.customer as string]);
@@ -602,7 +622,7 @@ export const salesTools: ErpNextTool[] = [
         filters.push(["posting_date", "<=", input.date_to as string]);
       }
 
-      const docs = await ctx.client.list("Sales Invoice", {
+      const listOptions = {
         fields: [
           "name",
           "customer",
@@ -613,14 +633,21 @@ export const salesTools: ErpNextTool[] = [
           "outstanding_amount",
         ],
         filters,
-        limit,
+        limit: input.limit === undefined ? undefined : limit,
         order_by: "modified desc",
-      });
+      };
+      const pageResult = autoPaginate
+        ? await ctx.client.listPaged("Sales Invoice", listOptions, { maxRecords })
+        : { data: await ctx.client.list("Sales Invoice", { ...listOptions, limit }), fetched_count: 0, truncated: false, max_cap_used: maxRecords };
+      const docs = pageResult.data;
 
       return {
         doctype: "Sales Invoice",
         count: docs.length,
         data: docs,
+        fetched_count: pageResult.fetched_count || docs.length,
+        truncated: pageResult.truncated,
+        max_cap_used: pageResult.max_cap_used,
         _meta: DOCLIST_META,
       };
     },

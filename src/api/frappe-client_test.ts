@@ -149,6 +149,72 @@ Deno.test("FrappeClient.list() - builds correct query string", async () => {
   globalThis.fetch = original;
 });
 
+Deno.test("FrappeClient.listPaged() - auto paginates when limit omitted", async () => {
+  const restore = mockFetch([
+    { status: 200, body: { data: [{ name: "A" }, { name: "B" }] } },
+    { status: 200, body: { data: [{ name: "C" }] } },
+  ]);
+
+  try {
+    const client = makeClient();
+    const result = await client.listPaged("Sales Invoice", {}, { pageSize: 2, maxRecords: 10 });
+    assertEquals(result.fetched_count, 3);
+    assertEquals(result.truncated, false);
+    assertEquals(result.data.length, 3);
+  } finally {
+    restore();
+  }
+});
+
+Deno.test("FrappeClient.listPaged() - respects explicit limit", async () => {
+  let capturedUrl = "";
+  const original = globalThis.fetch;
+
+  globalThis.fetch = async (
+    url: string | URL | Request,
+    _init?: RequestInit,
+  ): Promise<Response> => {
+    capturedUrl = url.toString();
+    return new Response(JSON.stringify({ data: [{ name: "X" }] }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+
+  try {
+    const client = makeClient();
+    const result = await client.listPaged("Sales Invoice", { limit: 1 }, { pageSize: 50, maxRecords: 5000 });
+    assertEquals(result.fetched_count, 1);
+    assertEquals(result.truncated, false);
+    const url = new URL(capturedUrl);
+    assertEquals(url.searchParams.get("limit"), "1");
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+Deno.test("FrappeClient.listPaged() - honors maxRecords when below pageSize", async () => {
+  const restore = mockFetch([
+    {
+      status: 200,
+      body: {
+        data: [{ name: "A" }, { name: "B" }, { name: "C" }, { name: "D" }, { name: "E" }],
+      },
+    },
+  ]);
+
+  try {
+    const client = makeClient();
+    const result = await client.listPaged("Sales Invoice", {}, { pageSize: 200, maxRecords: 5 });
+    assertEquals(result.data.length, 5);
+    assertEquals(result.fetched_count, 5);
+    assertEquals(result.truncated, true);
+    assertEquals(result.max_cap_used, 5);
+  } finally {
+    restore();
+  }
+});
+
 // ── get() ─────────────────────────────────────────────────────────────────────
 
 Deno.test("FrappeClient.get() - returns single document", async () => {
