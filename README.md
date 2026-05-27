@@ -9,6 +9,12 @@ Copilot, custom) to your ERPNext instance via the
 
 Works with **self-hosted** and **ERPNext Cloud** (frappe.cloud) instances.
 
+## RKube Fork
+
+RKube-specific work is tracked on the `Rathna-K/mcp-erpnext` fork. See
+[`docs/RKUBE_FORK.md`](docs/RKUBE_FORK.md) before syncing upstream or changing
+the parent `Rathna-K/frappe` submodule pointer.
+
 ## What's New in v2.1
 
 - **Cross-viewer navigation** — click a row in any list to drill down, click a
